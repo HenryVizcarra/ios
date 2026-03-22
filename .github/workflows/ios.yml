@@ -23,19 +23,30 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build Web Assets
-        run: mkdir -p www && cp index.html www/ || true
+      - name: Prepare Web Directory
+        run: |
+          mkdir -p www
+          cp index.html www/index.html || true
 
-      - name: Clean and Sync Capacitor
+      - name: Initialize and Sync Capacitor
         run: |
           rm -rf ios
           npx cap add ios
           npx cap sync ios
+          # Verify workspace path
+          ls -R ios/App | grep .xcworkspace || find . -name "*.xcworkspace"
 
       - name: Build Xcode Project
         run: |
+          WORKSPACE_PATH=$(find . -name "*.xcworkspace" | head -n 1)
+          if [ -z "$WORKSPACE_PATH" ]; then
+            echo "Error: No workspace found!"
+            exit 1
+          fi
+          echo "Found workspace at: $WORKSPACE_PATH"
+          
           xcodebuild build \
-            -workspace ios/App/App.xcworkspace \
+            -workspace "$WORKSPACE_PATH" \
             -scheme App \
             -configuration Debug \
             -sdk iphoneos \
@@ -45,8 +56,15 @@ jobs:
 
       - name: Package IPA
         run: |
+          APP_PATH=$(find build -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app found!"
+            exit 1
+          fi
+          echo "Found app at: $APP_PATH"
+          
           mkdir -p Payload
-          cp -r build/Build/Products/Debug-iphoneos/App.app Payload/
+          cp -r "$APP_PATH" Payload/
           zip -r MaamCindyPortfolio.ipa Payload
 
       - name: Upload IPA Artifact
